@@ -1,0 +1,7 @@
+[package]
+name = "co2monitor"
+version = "0.1.0"
+authors = ["Gregor Tudan <gregor@tudan.de>"]
+
+[dependencies]
+hid = "0.4.1"
