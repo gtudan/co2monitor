@@ -31,12 +31,13 @@ fn initialize() {
     let feature = [0x09];
     handle.feature().send_to(report_id, feature);
 
+    let mut data: [u8; 8] = [0; 8];
     loop {
-        let mut data: [u8; 8] = [0; 8];
-        match handle.data().read(data, Duration::from_secs(5)) {
+        match handle.data().read(&mut data, Duration::from_secs(5)) {
             Ok(length) => println!("Read {} bytes", length.expect("No bytes read!")),
             Err(why)   => println!("{}", why.description()),
         }
+        println!("{:?}", data);
 
     }
 
