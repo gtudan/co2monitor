@@ -12,17 +12,17 @@ fn main() {
 
 fn initialize() {
     let manager = Manager;
-    let mut devices = manager.find(Some(0x04d9),Some(0xa052));
+    let mut devices = manager.find(Some(0x04d9), Some(0xa052));
     let device = match devices.next() {
         Some(device) => device,
-        None         => panic!("Device not found!"),
+        None => panic!("Device not found!"),
     };
 
     println!("Found device at address {}", device.path().display());
 
     let mut handle = match device.open() {
         Ok(handle) => handle,
-        Err(why)   => panic!("Failed to open device {}", why.description()),
+        Err(why) => panic!("Failed to open device {}", why.description()),
     };
 
     let report_id = 0x00;
