@@ -31,7 +31,7 @@ fn initialize() {
     let mut data: [u8; 8] = [0; 8];
     loop {
         match handle.data().read(&mut data, Duration::from_secs(30)) {
-            Ok(length) => println!("Read {} bytes", result.expect("Failed to read")),
+            Ok(length) => println!("Read {} bytes", length.unwrap()),
             Err(why) => panic!("{}", why.description()),
         }
         let decrypted = decrypt(data);
