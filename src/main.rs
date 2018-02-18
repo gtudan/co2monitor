@@ -32,24 +32,29 @@ fn initialize() {
     loop {
         match handle.data().read(&mut data, Duration::from_secs(30)) {
             Ok(length) => println!("Read {} bytes", result.expect("Failed to read")),
-            Err(why)   => panic!("{}", why.description()),
+            Err(why) => panic!("{}", why.description()),
         }
         let decrypted = decrypt(data);
         decode(decrypted);
     }
-
 }
 
 #[test]
 fn it_decrypts() {
-    assert_eq!([0x50, 0x03, 0xF5, 0x48, 0x0D, 0x00, 0x00, 0x00], decrypt([0x98, 0xE4, 0x66, 0x20, 0x94, 0x46, 0xBF, 0x62]));
-    assert_eq!([0x6E, 0x60, 0xA0, 0x6E, 0x0D, 0x0, 0x0, 0x0], decrypt([0x72, 0xE4, 0x51, 0x21, 0xF9, 0x46, 0xBF, 0xB2]));
+    assert_eq!(
+        [0x50, 0x03, 0xF5, 0x48, 0x0D, 0x00, 0x00, 0x00],
+        decrypt([0x98, 0xE4, 0x66, 0x20, 0x94, 0x46, 0xBF, 0x62])
+    );
+    assert_eq!(
+        [0x6E, 0x60, 0xA0, 0x6E, 0x0D, 0x0, 0x0, 0x0],
+        decrypt([0x72, 0xE4, 0x51, 0x21, 0xF9, 0x46, 0xBF, 0xB2])
+    );
 }
 
 fn decrypt(data: [u8; 8]) -> [u32; 8] {
-    const CSTATE: [u8; 8] = [0x48,  0x74,  0x65,  0x6D,  0x70,  0x39,  0x39,  0x65];
+    const CSTATE: [u8; 8] = [0x48, 0x74, 0x65, 0x6D, 0x70, 0x39, 0x39, 0x65];
     const SHUFFLE: [usize; 8] = [2, 4, 0, 7, 1, 6, 5, 3];
-                
+
     let mut phase1 = [0; 8];
     for (i, &o) in SHUFFLE.iter().enumerate() {
         phase1[o] = data[i];
@@ -61,12 +66,12 @@ fn decrypt(data: [u8; 8]) -> [u32; 8] {
     }
     let mut phase3 = [0; 8];
     for i in 0..7 {
-        phase3[i] = ( (phase2[i] >> 3) | (phase2[ (i+8-1)%8 ] << 5) ) & 0xff;
+        phase3[i] = ((phase2[i] >> 3) | (phase2[(i + 8 - 1) % 8] << 5)) & 0xff;
     }
 
     let mut tmp = [0; 8];
     for i in 0..7 {
-        tmp[i] = ( (CSTATE[i] >> 4) | (CSTATE[i]<<4) ) & 0xff;
+        tmp[i] = ((CSTATE[i] >> 4) | (CSTATE[i] << 4)) & 0xff;
     }
 
     let mut out: [u32; 8] = [0; 8];
@@ -91,8 +96,8 @@ fn decode(decrypted: [u32; 8]) {
         if 0x50 == op {
             println!("CO2: {}", val);
         }
-        if 0x42 == op { 
-            println!("T: {:2.2}", (val as f32 / 16.0 - 273.15)); 
+        if 0x42 == op {
+            println!("T: {:2.2}", (val as f32 / 16.0 - 273.15));
         }
     }
 }
