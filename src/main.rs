@@ -28,7 +28,7 @@ fn initialize() {
     let report_id = 0x00;
     handle.feature().send_to(report_id, KEY).ok();
 
-    let mut data: [u8; 8] = [0; 8];
+    let mut data = [0u8; 8];
     loop {
         match handle.data().read(&mut data, Duration::from_secs(30)) {
             Ok(length) => println!("Read {} bytes", length.unwrap()),
@@ -51,7 +51,7 @@ fn it_decrypts() {
     );
 }
 
-fn decrypt(data: [u8; 8]) -> [u32; 8] {
+fn decrypt(data: [u8; 8]) -> [u8; 8] {
     const CSTATE: [u8; 8] = [0x48, 0x74, 0x65, 0x6D, 0x70, 0x39, 0x39, 0x65];
     const SHUFFLE: [usize; 8] = [2, 4, 0, 7, 1, 6, 5, 3];
 
@@ -61,36 +61,35 @@ fn decrypt(data: [u8; 8]) -> [u32; 8] {
     }
 
     let mut phase2 = [0; 8];
-    for i in 0..7 {
+    for i in 0..8 {
         phase2[i] = phase1[i] ^ KEY[i];
     }
+
     let mut phase3 = [0; 8];
-    for i in 0..7 {
-        phase3[i] = ((phase2[i] >> 3) | (phase2[(i + 8 - 1) % 8] << 5)) & 0xff;
+    for i in 0..8 {
+        phase3[i] = (phase2[i] >> 3 | phase2[(i + 7) % 8] << 5) & 0xff;
     }
 
     let mut tmp = [0; 8];
-    for i in 0..7 {
-        tmp[i] = ((CSTATE[i] >> 4) | (CSTATE[i] << 4)) & 0xff;
+    for i in 0..8 {
+        tmp[i] = (CSTATE[i] >> 4 | CSTATE[i] << 4) & 0xff;
     }
 
-    let mut out: [u32; 8] = [0; 8];
-    for i in 0..7 {
-        out[i] = (0x100u32 + u32::from(phase3[i]) - u32::from(tmp[i])) & 0xff;
+    let mut out = [0u8; 8];
+    for i in 0..8 {
+        out[i] = ((0x100u32 + u32::from(phase3[i]) - u32::from(tmp[i])) & 0xff) as u8;
     }
 
-    // just print for now
-    println!("{:?}", out);
     out
 }
 
-fn decode(decrypted: [u32; 8]) {
-    let sum = &decrypted[0..2].iter().sum() & 0xffu32;
+fn decode(decrypted: [u8; 8]) {
+    let sum = &decrypted[0..2].iter().sum() & 0xffu8;
     if decrypted[4] != 0x0d || sum != decrypted[3] {
         println!("{:?} => Checksum error", decrypted);
     } else {
         let op = decrypted[0];
-        let val = decrypted[1] << 8 | decrypted[2];
+        let val = (decrypted[1] as u16) << 8 | decrypted[2] as u16;
 
         // From http://co2meters.com/Documentation/AppNotes/AN146-RAD-0401-serial-communication.pdf
         if 0x50 == op {
