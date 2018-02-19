@@ -7,10 +7,11 @@ use std::time::Duration;
 const KEY: [u8; 8] = [0xc4, 0xc6, 0xc0, 0x92, 0x40, 0x23, 0xdc, 0x96];
 
 fn main() {
-    initialize();
+    let device = initialize();
+    read_data(device);
 }
 
-fn initialize() {
+fn initialize() -> hid::Handle {
     let manager = Manager;
     let mut devices = manager.find(Some(0x04d9), Some(0xa052));
     let device = match devices.next() {
@@ -27,11 +28,15 @@ fn initialize() {
 
     let report_id = 0x00;
     handle.feature().send_to(report_id, KEY).ok();
+    handle
+}
 
+fn read_data(mut handle: hid::Handle) {
     let mut data = [0u8; 8];
     loop {
         handle.data().read(&mut data, Duration::from_secs(30)).ok();
         let decrypted = decrypt(data);
+        validate_checksum(&decrypted).ok();
         decode(decrypted);
     }
 }
@@ -80,18 +85,16 @@ fn decrypt(data: [u8; 8]) -> [u8; 8] {
     out
 }
 
-fn validate_checksum(decrypted: &[u8;8]) -> Result<(), &'static str> {
-    let sum : u8 = (decrypted[0..3].iter().map(|x| *x as u16).sum::<u16>()  & 0xff) as u8;
+fn validate_checksum(decrypted: &[u8; 8]) -> Result<(), &'static str> {
+    let sum: u8 = (decrypted[0..3].iter().map(|x| *x as u16).sum::<u16>() & 0xff) as u8;
     if decrypted[4] != 0x0d || sum != decrypted[3] {
         return Err("Checksum validation failed");
     } else {
         return Ok(());
     }
-
 }
 
 fn decode(decrypted: [u8; 8]) {
-    validate_checksum(&decrypted).ok();
     let op = decrypted[0];
     let val = (decrypted[1] as u16) << 8 | decrypted[2] as u16;
 
