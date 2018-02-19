@@ -30,10 +30,7 @@ fn initialize() {
 
     let mut data = [0u8; 8];
     loop {
-        match handle.data().read(&mut data, Duration::from_secs(30)) {
-            Ok(length) => println!("Read {} bytes", length.unwrap()),
-            Err(why) => panic!("{}", why.description()),
-        }
+        handle.data().read(&mut data, Duration::from_secs(30)).ok();
         let decrypted = decrypt(data);
         decode(decrypted);
     }
@@ -83,20 +80,26 @@ fn decrypt(data: [u8; 8]) -> [u8; 8] {
     out
 }
 
-fn decode(decrypted: [u8; 8]) {
-    let sum = &decrypted[0..2].iter().sum() & 0xffu8;
+fn validate_checksum(decrypted: &[u8;8]) -> Result<(), &'static str> {
+    let sum : u8 = (decrypted[0..3].iter().map(|x| *x as u16).sum::<u16>()  & 0xff) as u8;
     if decrypted[4] != 0x0d || sum != decrypted[3] {
-        println!("{:?} => Checksum error", decrypted);
+        return Err("Checksum validation failed");
     } else {
-        let op = decrypted[0];
-        let val = (decrypted[1] as u16) << 8 | decrypted[2] as u16;
+        return Ok(());
+    }
 
-        // From http://co2meters.com/Documentation/AppNotes/AN146-RAD-0401-serial-communication.pdf
-        if 0x50 == op {
-            println!("CO2: {}", val);
-        }
-        if 0x42 == op {
-            println!("T: {:2.2}", (val as f32 / 16.0 - 273.15));
-        }
+}
+
+fn decode(decrypted: [u8; 8]) {
+    validate_checksum(&decrypted).ok();
+    let op = decrypted[0];
+    let val = (decrypted[1] as u16) << 8 | decrypted[2] as u16;
+
+    // From http://co2meters.com/Documentation/AppNotes/AN146-RAD-0401-serial-communication.pdf
+    if 0x50 == op {
+        println!("CO2: {}", val);
+    }
+    if 0x42 == op {
+        println!("T: {:2.2}", (val as f32 / 16.0 - 273.15));
     }
 }
