@@ -1,6 +1,6 @@
-mod dostmann;
+mod zytemp;
 
 fn main() {
-    let device = dostmann::initialize();
-    dostmann::read_data(device);
+    let device = zytemp::initialize();
+    zytemp::read_data(device);
 }
