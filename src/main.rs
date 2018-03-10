@@ -1,6 +1,9 @@
 mod zytemp;
 
 fn main() {
-    let device = zytemp::initialize();
-    zytemp::read_data(device);
+    let mut device = zytemp::initialize();
+    loop {
+        let reading = zytemp::read_data(&mut device);
+        println!("{:?}", reading);
+    }
 }
