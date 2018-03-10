@@ -1,3 +1,4 @@
+//! A module for reading temperatue and co2 concentration from a Dostmann CO2-Sensor
 extern crate hid;
 
 use std::error::Error;
@@ -5,12 +6,21 @@ use std::time::Duration;
 
 #[derive(PartialEq, Debug)]
 pub enum Reading {
+    /// a temperature reading in degrees of celcius
     Temperature(f32),
+    /// a co2 concentration in parts-per-million (PPM) 
     CO2(u16),
 }
 
+/// Readings are encoded with a key - I'll just set a static one
 const KEY: [u8; 8] = [0xc4, 0xc6, 0xc0, 0x92, 0x40, 0x23, 0xdc, 0x96];
 
+/// Detect the co2 reader and set it into reading mode
+///
+/// # Panics
+///
+/// This will fail if the device is not connected or if you are missing
+/// the required permissions for writing to the device
 pub fn initialize() -> hid::Handle {
     let manager = hid::Manager;
     let mut devices = manager.find(Some(0x04d9), Some(0xa052));
@@ -31,6 +41,7 @@ pub fn initialize() -> hid::Handle {
     handle
 }
 
+/// Get a reading from the device. The device must be in reading mode.
 pub fn read_data(handle: &mut hid::Handle) -> Reading {
     let mut data = [0u8; 8];
     handle.data().read(&mut data, Duration::from_secs(30)).ok();
@@ -43,6 +54,10 @@ pub fn read_data(handle: &mut hid::Handle) -> Reading {
     }
 }
 
+/// Decrypt a reading to get the raw data.
+///
+/// This decrypt logic was discovered by Henry Plötz and documented 
+/// [here](https://hackaday.io/project/5301/logs)
 fn decrypt(data: [u8; 8]) -> [u8; 8] {
     const CSTATE: [u8; 8] = [0x48, 0x74, 0x65, 0x6D, 0x70, 0x39, 0x39, 0x65];
     const SHUFFLE: [usize; 8] = [2, 4, 0, 7, 1, 6, 5, 3];
@@ -75,6 +90,11 @@ fn decrypt(data: [u8; 8]) -> [u8; 8] {
     out
 }
 
+/// Validate the checksum of a packet
+///
+/// # Errors
+///
+/// This will return an error if the package was corrupted
 fn validate_checksum(decrypted: &[u8; 8]) -> Result<(), &'static str> {
     let sum: u8 = (decrypted[0..3].iter().map(|x| *x as u16).sum::<u16>() & 0xff) as u8;
     if decrypted[4] != 0x0d || sum != decrypted[3] {
@@ -84,11 +104,14 @@ fn validate_checksum(decrypted: &[u8; 8]) -> Result<(), &'static str> {
     }
 }
 
+/// Decodes the readings to co2 concentration and temperature. This is documented 
+/// [here](http://co2meters.com/Documentation/AppNotes/AN146-RAD-0401-serial-communication.pdf)
+///
+/// There are return values that I could not make sens of. These are returned as `None`.
 fn decode(decrypted: [u8; 8]) -> Option<Reading> {
     let op = decrypted[0];
     let val = (decrypted[1] as u16) << 8 | decrypted[2] as u16;
 
-    // From http://co2meters.com/Documentation/AppNotes/AN146-RAD-0401-serial-communication.pdf
     match op {
         0x50 => Some(Reading::CO2(val)),
         0x42 => Some(Reading::Temperature(val as f32 / 16.0 - 273.15)),
