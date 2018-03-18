@@ -1,0 +1,1 @@
+ACTION=="add", ATTRS{idVendor}=="04d9", ATTRS{idProduct}=="a052", TAG+="systemd", ENV{SYSTEMD_WANTS}="co2monitor.service"

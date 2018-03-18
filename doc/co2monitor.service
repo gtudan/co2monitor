@@ -1,0 +1,11 @@
+[Unit]
+Description=Monitor CO2 levels
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/co2monitor
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+BindsTo=influxdb.service
