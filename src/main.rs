@@ -1,5 +1,7 @@
 //! A crate for reading co2 concentration from a Dostmann CO2-Sensor
 //! and writing it to influxdb.
+extern crate hidapi;
+
 mod zytemp;
 mod influxudp;
 
@@ -10,7 +12,8 @@ use influxudp::WireLine;
 const INFLUXDB_UDP: &'static str = "127.0.0.1:8089";
 
 fn main() {
-    let mut device = zytemp::initialize();
+    let api: hidapi::HidApi = hidapi::HidApi::new().unwrap();
+    let mut device = zytemp::initialize(&api);
 
     // Open an UDP-Socket to InfluxDB
     let socket = UdpSocket::bind("127.0.0.1:34567").expect("couldn't bind to address");

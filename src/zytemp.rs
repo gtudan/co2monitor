@@ -1,8 +1,5 @@
 //! A module for reading temperatue and co2 concentration from a Dostmann CO2-Sensor
-extern crate hid;
-
-use std::error::Error;
-use std::time::Duration;
+extern crate hidapi;
 
 #[derive(PartialEq, Debug)]
 pub enum Reading {
@@ -21,36 +18,29 @@ const KEY: [u8; 8] = [0xc4, 0xc6, 0xc0, 0x92, 0x40, 0x23, 0xdc, 0x96];
 ///
 /// This will fail if the device is not connected or if you are missing
 /// the required permissions for writing to the device
-pub fn initialize() -> hid::Handle {
-    let manager = hid::Manager;
-    let mut devices = manager.find(Some(0x04d9), Some(0xa052));
-    let device = match devices.next() {
-        Some(device) => device,
-        None => panic!("Device not found!"),
-    };
+pub fn initialize<'a>(api: &'a hidapi::HidApi) -> hidapi::HidDevice<'a> {
+    let device = api.open(0x04d9, 0xa052).expect("Device not found!");
 
-    println!("Found device at address {}", device.path().display());
-
-    let mut handle = match device.open() {
-        Ok(handle) => handle,
-        Err(why) => panic!("Failed to open device {}", why.description()),
-    };
+    println!("Found device");
 
     let report_id = 0x00;
-    handle.feature().send_to(report_id, KEY).ok();
-    handle
+    let mut buffer = Vec::with_capacity(KEY.len() + 1);
+	buffer.push(report_id);
+    buffer.extend(KEY.to_vec());
+    device.send_feature_report(&buffer).ok();
+    device
 }
 
 /// Get a reading from the device. The device must be in reading mode.
-pub fn read_data(handle: &mut hid::Handle) -> Reading {
+pub fn read_data(device: &mut hidapi::HidDevice) -> Reading {
     let mut data = [0u8; 8];
-    handle.data().read(&mut data, Duration::from_secs(30)).ok();
+    device.read(&mut data).ok();
     let decrypted = decrypt(data);
     validate_checksum(&decrypted).ok();
     
     match decode(decrypted) {
         Some(value) => value,
-        None => read_data(handle),
+        None => read_data(device),
     }
 }
 

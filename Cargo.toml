@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Gregor Tudan <gregor@tudan.de>"]
 
 [dependencies]
-hid = "0.4.1"
+hidapi = "0.4.1"
