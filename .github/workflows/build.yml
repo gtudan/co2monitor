@@ -1,0 +1,209 @@
+name: Build
+on: push
+env:
+  DEBIAN_FRONTEND: noninteractive
+jobs:
+  prepare:
+    runs-on: ubuntu-20.04
+    name: Prepare Build
+    steps:
+      - name: Find Tag Name
+        uses: olegtarasov/get-tag@v2
+        id: tagName
+      - name: Create Release
+        if: ${{ steps.tagName.outputs.tag != null }}
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tagName.outputs.tag }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Write Release Metadata
+        if: ${{ steps.tagName.outputs.tag != null }}
+        run: |
+          echo "${{ steps.tagName.outputs.tag }}" > git_tag_name.txt
+          echo "${{ steps.create_release.outputs.upload_url }}" > github_release_url.txt
+      - name: Write Empty Release Metadata
+        if: ${{ steps.tagName.outputs.tag == null }}
+        run: touch git_tag_name.txt github_release_url.txt 
+      - name: Upload Release Metadata
+        uses: actions/upload-artifact@v2
+        with:
+          name: build_data
+          path: |
+            git_tag_name.txt
+            github_release_url.txt
+  Linux-ARM:
+    runs-on: ubuntu-20.04
+    needs: prepare
+    name: Build on Linux ARM
+    strategy:
+      matrix:
+        architecture: [armv7, aarch64]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Release Data
+        uses: actions/download-artifact@v1
+        with:
+          name: build_data
+      - name: Load Release Data
+        id: build_data
+        run: |
+          GIT_TAG_NAME=$(cat build_data/git_tag_name.txt)
+          if [[ -z "${GIT_TAG_NAME}" ]]; then
+            echo "::set-output name=version::latest"
+          else
+            echo "::set-output name=version::${GIT_TAG_NAME}"
+          fi
+          echo "::set-output name=tag::${GIT_TAG_NAME}"
+          echo "::set-output name=upload_url::$(cat build_data/github_release_url.txt)"
+      - name: Avoid filesystem problems on 32-bit architectures
+        if: ${{ matrix.architecture == 'armv7' }}
+        run: |
+          mkdir -p /home/runner/work/_temp/_github_home/.cargo
+          sudo mount -t tmpfs -o size=2048m tmpfs /home/runner/work/_temp/_github_home/.cargo
+      - name: Run Virtualized Build
+        uses: uraimo/run-on-arch-action@v1.0.9
+        with:
+          architecture: ${{ matrix.architecture }}
+          distribution: ubuntu20.04
+          run: |
+            export DEBIAN_FRONTEND=noninteractive
+            set -e
+            apt-get update -q
+            apt-get install -q -y curl ca-certificates build-essential pkg-config libusb-1.0-0 libusb-1.0-0-dev libudev-dev libhidapi-dev
+            curl -sSf https://sh.rustup.rs | sh -s -- -y -q
+            source $HOME/.cargo/env
+            cargo build --release
+            mv ./target/release/co2monitor co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          path: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+      - name: Upload Release Asset
+        if: ${{ steps.build_data.outputs.tag != '' }}
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.build_data.outputs.upload_url }}
+          asset_path: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          asset_name: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          asset_content_type: application/octet-stream
+  Linux-AMD64:
+    runs-on: ubuntu-20.04
+    needs: prepare
+    name: Build on Linux x86_64
+    strategy:
+      matrix:
+        architecture: [x86_64]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Release Data
+        uses: actions/download-artifact@v1
+        with:
+          name: build_data
+      - name: Load Release Data
+        id: build_data
+        run: |
+          GIT_TAG_NAME=$(cat build_data/git_tag_name.txt)
+          if [[ -z "${GIT_TAG_NAME}" ]]; then
+            echo "::set-output name=version::latest"
+          else
+            echo "::set-output name=version::${GIT_TAG_NAME}"
+          fi
+          echo "::set-output name=tag::${GIT_TAG_NAME}"
+          echo "::set-output name=upload_url::$(cat build_data/github_release_url.txt)"
+      - name: Install Development Packages
+        uses: mstksg/get-package@v1
+        with:
+          apt-get: build-essential pkg-config libusb-1.0-0 libusb-1.0-0-dev libudev-dev libhidapi-dev
+      - name: Prepare Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Run Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Rename Build Artifact
+        run: |
+            mv ./target/release/co2monitor co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          path: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+      - name: Upload Release Asset
+        if: ${{ steps.build_data.outputs.tag != '' }}
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.build_data.outputs.upload_url }}
+          asset_path: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          asset_name: co2monitor-${{ steps.build_data.outputs.version }}-linux-${{ matrix.architecture }}
+          asset_content_type: application/octet-stream
+  macOS-x86_64:
+    runs-on: macOS-latest
+    needs: prepare
+    name: Build on macOS x86_64
+    strategy:
+      matrix:
+        architecture: [x86_64]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download Release Data
+        uses: actions/download-artifact@v1
+        with:
+          name: build_data
+      - name: Load Release Data
+        id: build_data
+        run: |
+          GIT_TAG_NAME=$(cat build_data/git_tag_name.txt)
+          if [[ -z "${GIT_TAG_NAME}" ]]; then
+            echo "::set-output name=version::latest"
+          else
+            echo "::set-output name=version::${GIT_TAG_NAME}"
+          fi
+          echo "::set-output name=tag::${GIT_TAG_NAME}"
+          echo "::set-output name=upload_url::$(cat build_data/github_release_url.txt)"
+      - name: Install Development Packages
+        uses: mstksg/get-package@v1
+        with:
+          brew: hidapi
+      - name: Prepare Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: Run Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+      - name: Rename Build Artifact
+        run: |
+            mv ./target/release/co2monitor co2monitor-${{ steps.build_data.outputs.version }}-darwin-${{ matrix.architecture }}
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: co2monitor-${{ steps.build_data.outputs.version }}-darwin-${{ matrix.architecture }}
+          path: co2monitor-${{ steps.build_data.outputs.version }}-darwin-${{ matrix.architecture }}
+      - name: Upload Release Asset
+        if: ${{ steps.build_data.outputs.tag != '' }}
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.build_data.outputs.upload_url }}
+          asset_path: co2monitor-${{ steps.build_data.outputs.version }}-darwin-${{ matrix.architecture }}
+          asset_name: co2monitor-${{ steps.build_data.outputs.version }}-darwin-${{ matrix.architecture }}
+          asset_content_type: application/octet-stream
