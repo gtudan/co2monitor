@@ -3,7 +3,7 @@ extern crate hidapi;
 
 #[derive(PartialEq, Debug)]
 pub enum Reading {
-    /// a temperature reading in degrees of celcius
+    /// a temperature reading in degrees of Celsius
     Temperature(f32),
     /// a co2 concentration in parts-per-million (PPM) 
     CO2(u16),

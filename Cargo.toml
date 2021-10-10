@@ -1,7 +1,13 @@
 [package]
 name = "co2monitor"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Gregor Tudan <gregor@tudan.de>"]
 
 [dependencies]
 hidapi = "0.4.1"
+rumqttc = "0.9.0"
+
+[build]
+
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-none-linux-gnueabihf-gcc"
