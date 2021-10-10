@@ -6,8 +6,3 @@ authors = ["Gregor Tudan <gregor@tudan.de>"]
 [dependencies]
 hidapi = "0.4.1"
 rumqttc = "0.9.0"
-
-[build]
-
-[target.armv7-unknown-linux-gnueabihf]
-linker = "arm-none-linux-gnueabihf-gcc"
